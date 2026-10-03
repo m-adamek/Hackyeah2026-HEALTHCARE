@@ -8,7 +8,11 @@ const routes = {
     'insights': renderInsights,
     'train': renderTrain,
     'profile': renderProfile,
+    'settings': renderSettings,
     'knowledge_base': renderKnowledgeBase,
+    'knowledge_exercises': renderKnowledgeExercises,
+    'expert_plans': renderExpertPlans,
+    'knowledge_articles': renderKnowledgeArticles,
     'knowledge_base_detail': renderKnowledgeBaseDetail,
     'camera_feedback': renderCameraFeedback,
     'history': renderHistory,
@@ -17,14 +21,16 @@ const routes = {
     'find_trainer': renderFindTrainer,
     'community': renderCommunity,
     'symptom_tracker': renderSymptomTracker,
-    'doctor_report': renderDoctorReport
+    'doctor_report': renderDoctorReport,
+    'clients': renderClients
 };
 
 // Application state for passing data between views
 const appState = {
     selectedWorkout: null,
     selectedExercise: null,
-    selectedKBItem: null
+    selectedKBItem: null,
+    isTrainer: false
 };
 
 let currentRoute = 'home';
@@ -37,14 +43,60 @@ function navigate(route) {
 
 function render() {
     const app = document.getElementById('app');
-    app.innerHTML = '';
     
-    // Render current view
-    const viewContent = routes[currentRoute]();
-    app.appendChild(viewContent);
+    let sc = document.getElementById('screen-container');
+    let nc = document.getElementById('nav-container');
     
-    // Render bottom navigation
-    app.appendChild(renderBottomNav());
+    if (!sc) {
+        app.innerHTML = '';
+        sc = document.createElement('div');
+        sc.id = 'screen-container';
+        
+        nc = document.createElement('div');
+        nc.id = 'nav-container';
+        
+        app.appendChild(sc);
+        app.appendChild(nc);
+    }
+    
+    // Replace screen
+    sc.innerHTML = '';
+    const screen = routes[currentRoute]();
+    sc.appendChild(screen);
+    
+    // Bottom nav handling to prevent flickering
+    const needsNav = ['home', 'knowledge_base', 'knowledge_exercises', 'expert_plans', 'knowledge_articles', 'train', 'profile', 'settings', 'clients'].includes(currentRoute);
+    
+    if (needsNav) {
+        if (!nc.firstChild) {
+            nc.appendChild(renderBottomNav());
+        }
+        updateBottomNavState();
+    } else {
+        nc.innerHTML = '';
+    }
+}
+
+function updateBottomNavState() {
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav) return;
+    
+    const isKnowledge = ['knowledge_base', 'knowledge_exercises', 'expert_plans', 'knowledge_articles'].includes(currentRoute);
+    const isProfile = ['profile', 'settings', 'clients'].includes(currentRoute);
+    const isTrain = ['train', 'camera_feedback'].includes(currentRoute);
+    
+    const buttons = nav.querySelectorAll('.nav-item');
+    if (buttons.length < 4) return;
+    
+    const setBtnState = (btn, isActive, baseIcon) => {
+        btn.className = 'nav-item ' + (isActive ? 'active' : '');
+        btn.querySelector('i').className = isActive ? 'ph-fill ' + baseIcon : 'ph ' + baseIcon;
+    };
+    
+    setBtnState(buttons[0], currentRoute === 'home', 'ph-house');
+    setBtnState(buttons[1], isKnowledge, 'ph-book-open');
+    setBtnState(buttons[2], isTrain, 'ph-barbell');
+    setBtnState(buttons[3], isProfile, 'ph-user');
 }
 
 // --- UI Components ---
@@ -68,31 +120,35 @@ function renderHome() {
 
     // Context Grid
     const today = getTodayContext();
+    // Diet calculations
+    const totalKcal = DietData.entries.reduce((sum, entry) => sum + entry.kcal, 0);
+    const macros = DietData.macros;
+
     const contextGrid = createEl('div', 'today-context-grid mb-6');
     contextGrid.innerHTML = `
         <div class="context-item">
-            <div class="context-icon"><i class="ph ph-moon"></i></div>
+            <div class="context-icon"><i class="ph-fill ph-moon text-primary"></i></div>
             <div>
                 <div class="text-xs text-muted font-semibold uppercase">Sleep</div>
                 <div class="font-bold flex items-center gap-2">${today.sleep}h <span class="text-xs text-danger">↓</span></div>
             </div>
         </div>
-        <div class="context-item">
-            <div class="context-icon"><i class="ph ph-lightning"></i></div>
+        <div class="context-item" onclick="window.navigate('diet')" style="cursor: pointer;">
+            <div class="context-icon text-warning"><i class="ph-fill ph-fire"></i></div>
             <div>
-                <div class="text-xs text-muted font-semibold uppercase">Energy</div>
-                <div class="font-bold">${today.energy}/10</div>
+                <div class="text-xs text-muted font-semibold uppercase">Calories</div>
+                <div class="font-bold text-warning">${totalKcal} kcal</div>
             </div>
         </div>
-        <div class="context-item">
-            <div class="context-icon text-danger"><i class="ph ph-battery-warning"></i></div>
+        <div class="context-item" onclick="window.navigate('diet')" style="cursor: pointer;">
+            <div class="context-icon text-success"><i class="ph-fill ph-chart-pie-slice"></i></div>
             <div>
-                <div class="text-xs text-muted font-semibold uppercase">Fatigue</div>
-                <div class="font-bold">${today.fatigue}/10</div>
+                <div class="text-xs text-muted font-semibold uppercase">Macros</div>
+                <div class="font-bold text-success text-sm">${macros.protein}%P / ${macros.carbs}%C</div>
             </div>
         </div>
-        <div class="context-item">
-            <div class="context-icon"><i class="ph ph-barbell"></i></div>
+        <div class="context-item" onclick="window.navigate('history')" style="cursor: pointer;">
+            <div class="context-icon text-danger"><i class="ph-fill ph-barbell"></i></div>
             <div>
                 <div class="text-xs text-muted font-semibold uppercase">Recent Load</div>
                 <div class="font-bold text-danger">High</div>
@@ -252,6 +308,18 @@ function renderInsights() {
             <p class="text-xs text-muted">Explanation: Volume is adequate, but lack of sleep recovery on training days prevents nervous system adaptation.</p>
         </div>
 
+        <!-- Diet & Performance Correlation -->
+        <div class="card mb-4" style="border-left: 4px solid var(--success);">
+            <div class="flex items-center gap-2 mb-2">
+                <i class="ph-fill ph-apple-logo text-success text-xl"></i>
+                <h3 class="font-bold text-lg">Diet & Performance Pattern</h3>
+            </div>
+            <p class="text-sm mb-3">Your progress in <strong>Bench Press & Pull exercises</strong> correlates strongly with your protein intake.</p>
+            <div class="bg-surface-200 p-2 rounded text-xs text-muted mb-2">AI Factor Analysis:</div>
+            <p class="text-xs text-muted mb-2">In the last 3 weeks, your daily protein intake increased by <strong>15% (averaging 180g)</strong>. During this exact period, your Bench Press volume and max load increased by <strong>8%</strong>.</p>
+            <p class="text-xs text-muted"><em>Conclusion:</em> Sustaining high protein intake directly drives your hypertrophy block progress, while historical drops below 140g correlated with plateauing.</p>
+        </div>
+
         <!-- Personal Training Load -->
         <div class="card mb-4" style="border-left: 4px solid var(--warning);">
             <div class="flex items-center gap-2 mb-2">
@@ -403,6 +471,13 @@ function renderTrain() {
 
 function renderProfile() {
     const container = createEl('div', 'screen');
+    
+    // Make toggle function available globally for this render
+    window.toggleRole = () => {
+        appState.isTrainer = !appState.isTrainer;
+        window.navigate('profile');
+    };
+
     container.innerHTML = `
         <div class="flex justify-between items-center mb-6">
             <div class="flex items-center gap-3">
@@ -411,11 +486,26 @@ function renderProfile() {
                 </div>
                 <div>
                     <h1 class="text-xl font-bold">${UserProfile.name}</h1>
-                    <div class="text-xs text-muted">Standard User</div>
+                    <div class="text-xs text-muted cursor-pointer hover:text-white transition-colors" onclick="window.toggleRole()" style="display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px; background: rgba(255,255,255,0.1);">
+                        <i class="ph ph-arrows-left-right"></i> ${appState.isTrainer ? '<strong class="text-primary">Trainer Account</strong>' : 'Standard User'}
+                    </div>
                 </div>
             </div>
-            <button class="btn btn-outline" style="padding: 8px;"><i class="ph ph-gear"></i></button>
+            <button class="btn btn-outline" style="padding: 8px;" onclick="window.navigate('settings')"><i class="ph ph-gear"></i></button>
         </div>
+
+        ${appState.isTrainer ? `
+            <div class="card mb-6 p-4 border-l-4 border-primary" style="background: var(--surface-200); border-left-color: var(--accent-primary);">
+                <div class="flex items-center gap-2 mb-2">
+                    <i class="ph ph-users-three text-xl text-primary"></i>
+                    <h3 class="font-bold text-lg">Trainer Dashboard</h3>
+                </div>
+                <p class="text-sm text-muted mb-4">Monitor your clients' progress, update their plans, and send messages.</p>
+                <button class="btn btn-primary w-full font-bold" onclick="window.navigate('clients')">
+                    Sprawdź swoich podopiecznych <i class="ph ph-arrow-right"></i>
+                </button>
+            </div>
+        ` : ''}
         
         <div class="card border-primary mb-4 p-3 flex justify-between items-center cursor-pointer" style="border-color: var(--accent-primary);" onclick="window.navigate('insights')">
             <span class="font-bold"><i class="ph ph-sparkle text-primary"></i> AI Insight</span>
@@ -466,31 +556,305 @@ function renderProfile() {
     return container;
 }
 
+function renderSettings() {
+    const container = createEl('div', 'screen');
+    container.innerHTML = `
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('profile')"><i class="ph ph-arrow-left"></i></button>
+            <h1 class="text-2xl font-bold">Settings</h1>
+        </div>
+        
+        <h3 class="font-semibold text-lg mb-3">Connected Devices & Apps</h3>
+        
+        <!-- Apple Health / Google Fit -->
+        <div class="card mb-3 p-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div style="background: rgba(255, 69, 58, 0.2); color: #ff453a; padding: 10px; border-radius: 8px;"><i class="ph-fill ph-heartbeat text-xl"></i></div>
+                <div>
+                    <div class="font-bold">Apple Health / Google Fit</div>
+                    <div class="text-xs text-muted">Sync steps and basic vitals</div>
+                </div>
+            </div>
+            <button class="btn btn-outline text-xs" style="padding: 4px 8px; border-color: var(--success); color: var(--success);" onclick="alert('Disconnected successfully')">Connected</button>
+        </div>
+
+        <!-- Smartwatch (Garmin/Whoop/etc) -->
+        <div class="card mb-6 p-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div style="background: rgba(50, 173, 230, 0.2); color: #32ade6; padding: 10px; border-radius: 8px;"><i class="ph-fill ph-watch text-xl"></i></div>
+                <div>
+                    <div class="font-bold">Smartwatch / Tracker</div>
+                    <div class="text-xs text-muted">Garmin, Oura, Whoop, Apple Watch</div>
+                </div>
+            </div>
+            <button class="btn btn-primary text-xs" style="padding: 4px 8px;" onclick="alert('Searching for nearby Bluetooth devices...')">Connect</button>
+        </div>
+
+        <h3 class="font-semibold text-lg mb-3">General Settings</h3>
+
+        <!-- Units -->
+        <div class="card mb-3 p-3 flex justify-between items-center interactive" onclick="alert('Switched to lbs (Pounds)')">
+            <div>
+                <div class="font-bold">Weight Units</div>
+                <div class="text-xs text-muted">Currently: Kilograms (kg)</div>
+            </div>
+            <i class="ph ph-arrows-left-right text-muted"></i>
+        </div>
+
+        <!-- Theme -->
+        <div class="card mb-3 p-3 flex justify-between items-center interactive" onclick="alert('Light theme coming soon!')">
+            <div>
+                <div class="font-bold">Theme</div>
+                <div class="text-xs text-muted">Currently: Dark Mode</div>
+            </div>
+            <i class="ph ph-moon text-muted"></i>
+        </div>
+
+        <!-- Notifications -->
+        <div class="card mb-3 p-3 flex justify-between items-center interactive" onclick="alert('Notification settings updated')">
+            <div>
+                <div class="font-bold">Push Notifications</div>
+                <div class="text-xs text-muted">Workout reminders, coach messages</div>
+            </div>
+            <div class="w-10 h-5 bg-primary rounded-full relative" style="background: var(--success);">
+                <div class="w-4 h-4 bg-white rounded-full absolute" style="right: 2px; top: 2px;"></div>
+            </div>
+        </div>
+
+        <div class="mt-8 text-center">
+            <button class="btn w-full text-danger" style="background: rgba(255, 69, 58, 0.1); border: 1px solid rgba(255, 69, 58, 0.3);" onclick="alert('Logged out successfully.')"><i class="ph ph-sign-out"></i> Log Out</button>
+        </div>
+    `;
+    return container;
+}
+
+function renderClients() {
+    const container = createEl('div', 'screen');
+    
+    const clients = [
+        {
+            id: 'c1', name: 'Maciej Kowalski', 
+            lastWorkout: 'Upper Body Power (Yesterday)', 
+            loadChange: '+5%', fatigue: 6,
+            dietStatus: 'On track (2750 kcal)',
+            avatar: 'MK'
+        },
+        {
+            id: 'c2', name: 'Anna Nowak', 
+            lastWorkout: 'Leg Day (Today)', 
+            loadChange: '-2%', fatigue: 8,
+            dietStatus: 'Needs review',
+            avatar: 'AN'
+        },
+        {
+            id: 'c3', name: 'Piotr Wiśniewski', 
+            lastWorkout: 'Rest Day', 
+            loadChange: 'Stable', fatigue: 3,
+            dietStatus: 'On track (3200 kcal)',
+            avatar: 'PW'
+        }
+    ];
+
+    container.innerHTML = `
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('profile')"><i class="ph ph-arrow-left"></i></button>
+            <h1 class="text-2xl font-bold">My Clients</h1>
+        </div>
+
+        <div class="mb-6 relative">
+            <i class="ph ph-magnifying-glass absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px;"></i>
+            <input type="text" placeholder="Search clients..." class="bg-surface-200 text-main border-none rounded p-2" style="width: 100%; padding-left: 36px; background: var(--surface-200); color: white; box-sizing: border-box;">
+        </div>
+
+        ${clients.map(c => `
+            <div class="card mb-4 p-4">
+                <div class="flex items-start gap-4 mb-3">
+                    <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--surface-300); display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; border: 2px solid ${c.fatigue > 7 ? 'var(--danger)' : 'var(--accent-primary)'};">
+                        ${c.avatar}
+                    </div>
+                    <div style="flex: 1;">
+                        <h3 class="font-bold text-lg">${c.name}</h3>
+                        
+                        <div class="mt-2 text-xs text-muted mb-1 uppercase font-bold">Latest Training</div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span>${c.lastWorkout}</span>
+                            <span class="badge ${c.loadChange.includes('+') ? 'badge-green' : 'badge-yellow'}">${c.loadChange} Load</span>
+                        </div>
+                        
+                        <div class="mt-2 text-xs text-muted mb-1 uppercase font-bold">Diet & Recovery</div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span>${c.dietStatus}</span>
+                            <span class="font-bold" style="color: ${c.fatigue > 7 ? 'var(--danger)' : 'var(--muted)'}">Fatigue: ${c.fatigue}/10</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 mt-3 pt-3" style="border-top: 1px dashed var(--border-color);">
+                    <button class="btn btn-primary" style="flex: 1;"><i class="ph ph-chart-line-up"></i> Details</button>
+                    <button class="btn btn-secondary" style="flex: 1;" onclick="alert('Message window to ${c.name} opened.')"><i class="ph ph-chat-circle"></i> Message</button>
+                </div>
+            </div>
+        `).join('')}
+    `;
+
+    return container;
+}
+
 function renderKnowledgeBase() {
+    const container = createEl('div', 'screen');
+    container.innerHTML = `
+        <h1 class="text-2xl font-bold mb-2">Knowledge & Plans</h1>
+        <p class="text-sm text-muted mb-6">Explore exercises, grab an expert plan, or learn the basics.</p>
+        
+        <div class="card mb-4 interactive border-primary p-4" onclick="window.navigate('knowledge_exercises')">
+            <div class="flex items-center gap-4 mb-2">
+                <div style="background: var(--surface-300); padding: 12px; border-radius: 12px;"><i class="ph-fill ph-barbell text-primary text-2xl"></i></div>
+                <div>
+                    <h3 class="font-bold text-lg">Exercise Database</h3>
+                    <p class="text-xs text-muted">Search how to perform exercises properly</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4 interactive border-warning p-4" onclick="window.navigate('expert_plans')">
+            <div class="flex items-center gap-4 mb-2">
+                <div style="background: var(--surface-300); padding: 12px; border-radius: 12px;"><i class="ph-fill ph-clipboard-text text-warning text-2xl"></i></div>
+                <div>
+                    <h3 class="font-bold text-lg">Expert Workout Plans</h3>
+                    <p class="text-xs text-muted">Ready-made templates for beginners</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4 interactive border-success p-4" onclick="window.navigate('knowledge_articles')">
+            <div class="flex items-center gap-4 mb-2">
+                <div style="background: var(--surface-300); padding: 12px; border-radius: 12px;"><i class="ph-fill ph-book-open text-success text-2xl"></i></div>
+                <div>
+                    <h3 class="font-bold text-lg">Knowledge Hub</h3>
+                    <p class="text-xs text-muted">Basics of diet, exercise, and equipment</p>
+                </div>
+            </div>
+        </div>
+    `;
+    return container;
+}
+
+function renderKnowledgeExercises() {
     const container = createEl('div', 'screen');
     const db = Object.keys(ExerciseDB).map(k => ({ id: k, ...ExerciseDB[k] }));
     
+    // Extract unique muscle groups and tags
+    const muscles = [...new Set(db.map(ex => ex.primary).filter(Boolean))].sort();
+    const allTags = new Set();
+    db.forEach(ex => {
+        if(ex.tags) ex.tags.forEach(t => allTags.add(t));
+    });
+    const tags = [...allTags].sort();
+
     container.innerHTML = `
-        <h1 class="text-2xl font-bold mb-2">Knowledge Base</h1>
-        <p class="text-sm text-muted mb-4">Learn how to properly perform exercises and check your results.</p>
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_base')"><i class="ph ph-arrow-left"></i></button>
+            <h1 class="text-2xl font-bold">Exercise Database</h1>
+        </div>
         
-        <div class="mb-6 relative">
-            <i class="ph ph-magnifying-glass absolute text-muted" style="left: 12px; top: 12px; font-size: 18px;"></i>
-            <input type="text" id="kb-search" placeholder="Search exercise..." class="bg-surface-200 text-main border-none rounded p-2" style="width: 100%; padding-left: 36px; background: var(--surface-200); color: white; border: 1px solid var(--border-color); box-sizing: border-box;" onkeyup="window.filterKB(this.value)">
+        <div class="mb-3 relative">
+            <i class="ph ph-magnifying-glass absolute text-muted" style="left: 12px; top: 50%; transform: translateY(-50%); font-size: 18px;"></i>
+            <input type="text" id="kb-search" placeholder="Search exercise..." class="bg-surface-200 text-main border-none rounded p-2" style="width: 100%; padding-left: 36px; background: var(--surface-200); color: white; border: 1px solid var(--border-color); box-sizing: border-box;" onkeyup="window.applyKBFilters()">
+        </div>
+
+        <div class="mb-6 flex gap-2 overflow-x-auto pb-2" style="white-space: nowrap;">
+            <select id="kb-filter-muscle" class="bg-surface-200 text-xs p-2 rounded border-none text-main" style="background: var(--surface-200); color: white; border: 1px solid var(--border-color);" onchange="window.applyKBFilters()">
+                <option value="">All Muscles</option>
+                ${muscles.map(m => `<option value="${m}">${m.charAt(0).toUpperCase() + m.slice(1)}</option>`).join('')}
+            </select>
+            <select id="kb-filter-tag" class="bg-surface-200 text-xs p-2 rounded border-none text-main" style="background: var(--surface-200); color: white; border: 1px solid var(--border-color);" onchange="window.applyKBFilters()">
+                <option value="">All Tags / Equipment</option>
+                ${tags.map(t => `<option value="${t}">#${t}</option>`).join('')}
+            </select>
         </div>
 
         <div id="kb-list">
             ${db.map(ex => `
-                <div class="card mb-3 kb-item p-3 cursor-pointer hover:bg-surface-300" data-name="${ex.name.toLowerCase()}" onclick="appState.selectedKBItem = '${ex.id}'; window.navigate('knowledge_base_detail')">
+                <div class="card mb-3 kb-item p-3 cursor-pointer hover:bg-surface-300" data-name="${ex.name.toLowerCase()}" data-primary="${ex.primary || ''}" data-tags="${(ex.tags || []).join(',')}" onclick="appState.selectedKBItem = '${ex.id}'; window.navigate('knowledge_base_detail')">
                     <div class="flex justify-between items-center mb-1">
                         <h3 class="font-semibold text-lg">${ex.name}</h3>
                         <i class="ph ph-caret-right text-muted"></i>
                     </div>
                     <div class="flex gap-1 flex-wrap mt-2">
-                        ${ex.tags ? ex.tags.map(t => `<span class="badge badge-blue text-xs">${t}</span>`).join('') : ''}
+                        ${ex.primary ? `<span class="badge" style="background: rgba(74,222,128,0.2); color: #4ade80; border: 1px solid #4ade80; font-size: 10px;">${ex.primary.toUpperCase()}</span>` : ''}
+                        ${ex.tags ? ex.tags.map(t => `<span class="badge badge-blue text-xs">#${t}</span>`).join('') : ''}
                     </div>
                 </div>
             `).join('')}
+        </div>
+    `;
+    return container;
+}
+
+function renderExpertPlans() {
+    const container = createEl('div', 'screen');
+    container.innerHTML = `
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_base')"><i class="ph ph-arrow-left"></i></button>
+            <h1 class="text-2xl font-bold">Expert Plans</h1>
+        </div>
+        <p class="text-sm text-muted mb-6">Start with a basic, ready-made plan created by professional trainers.</p>
+
+        <div class="card mb-4 border-warning" style="border-color: var(--warning);">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h3 class="font-bold text-lg">Absolute Beginner Full Body</h3>
+                    <p class="text-xs text-muted mb-2">Perfect for your first days at the gym. Focuses on machines and safe movements.</p>
+                    <div class="flex gap-2">
+                        <span class="badge badge-green">Beginner</span>
+                        <span class="badge badge-blue">45 min</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-warning w-full mt-3" style="background: var(--warning); color: #000; width: 100%;" onclick="alert('Plan added to your Train section!')"><i class="ph ph-download-simple"></i> Save to my plans</button>
+        </div>
+
+        <div class="card mb-4 border-warning" style="border-color: var(--warning);">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h3 class="font-bold text-lg">Push / Pull / Legs Intro</h3>
+                    <p class="text-xs text-muted mb-2">A solid foundation for building muscle safely over 3 days.</p>
+                    <div class="flex gap-2">
+                        <span class="badge badge-green">Beginner</span>
+                        <span class="badge badge-blue">60 min</span>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-warning w-full mt-3" style="background: var(--warning); color: #000; width: 100%;" onclick="alert('Plan added to your Train section!')"><i class="ph ph-download-simple"></i> Save to my plans</button>
+        </div>
+    `;
+    return container;
+}
+
+function renderKnowledgeArticles() {
+    const container = createEl('div', 'screen');
+    container.innerHTML = `
+        <div class="flex items-center gap-3 mb-6">
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_base')"><i class="ph ph-arrow-left"></i></button>
+            <h1 class="text-2xl font-bold">Knowledge Hub</h1>
+        </div>
+        
+        <h3 class="font-semibold text-lg mb-3 mt-4">Diet & Nutrition</h3>
+        <div class="card mb-4 p-3 flex justify-between items-center interactive border-l-2 border-primary" style="border-left: 3px solid var(--accent-primary);" onclick="alert('Opening article...')">
+            <div><div class="font-bold">Basic Information About Diet</div><div class="text-xs text-muted">Macros, calories, and building a foundation.</div></div>
+            <i class="ph ph-caret-right text-muted"></i>
+        </div>
+
+        <h3 class="font-semibold text-lg mb-3">Exercises</h3>
+        <div class="card mb-4 p-3 flex justify-between items-center interactive border-l-2 border-primary" style="border-left: 3px solid var(--accent-secondary);" onclick="alert('Opening article...')">
+            <div><div class="font-bold">Basic Information About Exercises</div><div class="text-xs text-muted">Form, tempo, and how muscles grow.</div></div>
+            <i class="ph ph-caret-right text-muted"></i>
+        </div>
+
+        <h3 class="font-semibold text-lg mb-3">Equipment</h3>
+        <div class="card mb-4 p-3 flex justify-between items-center interactive border-l-2 border-primary" style="border-left: 3px solid var(--warning);" onclick="alert('Opening article...')">
+            <div><div class="font-bold">How to Use Gym Equipment</div><div class="text-xs text-muted">Machines vs Free Weights – safe usage guide.</div></div>
+            <i class="ph ph-caret-right text-muted"></i>
         </div>
     `;
     return container;
@@ -526,9 +890,11 @@ function renderKnowledgeBaseDetail() {
     const avgReps = Math.round(histEx.repsChart.reduce((a,b) => a+b, 0) / histEx.repsChart.length);
     const avgSets = Math.round(histEx.setsChart.reduce((a,b) => a+b, 0) / histEx.setsChart.length);
 
-    const makeSparkline = (data) => {
-        const min = Math.min(...data) * 0.9;
-        const max = Math.max(...data) * 1.1;
+    const makeSparkline = (data, unit = '') => {
+        const minVal = Math.min(...data);
+        const maxVal = Math.max(...data);
+        const min = minVal === maxVal ? minVal - 1 : minVal - (maxVal - minVal) * 0.1;
+        const max = minVal === maxVal ? maxVal + 1 : maxVal + (maxVal - minVal) * 0.1;
         const width = 100;
         const height = 40;
         const points = data.map((val, i) => {
@@ -536,12 +902,27 @@ function renderKnowledgeBaseDetail() {
             const y = height - ((val - min) / (max - min)) * height;
             return `${x},${y}`;
         }).join(' ');
-        return `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:100%; overflow:visible;"><polyline fill="none" stroke="var(--accent-primary)" stroke-width="2" points="${points}"/></svg>`;
+
+        let formatVal = (v) => v.toFixed(0) + unit;
+        if (unit === 'min') {
+            formatVal = (v) => Math.floor(v/60) + ':' + (Math.round(v)%60).toString().padStart(2, '0');
+        }
+
+        return `
+        <div style="position: relative; width: 100%; height: 100%;">
+            <div style="position: absolute; top: -5px; left: 0; width: 35px; font-size: 10px; color: var(--muted); text-align: right;">${formatVal(maxVal)}</div>
+            <div style="position: absolute; bottom: -5px; left: 0; width: 35px; font-size: 10px; color: var(--muted); text-align: right;">${formatVal(minVal)}</div>
+            <div style="margin-left: 45px; height: 100%; border-bottom: 1px dashed var(--border-color); position: relative;">
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width:100%; height:100%; overflow:visible;">
+                    <polyline fill="none" stroke="var(--accent-primary)" stroke-width="2" points="${points}"/>
+                </svg>
+            </div>
+        </div>`;
     };
 
     container.innerHTML = `
         <div class="flex items-center gap-3 mb-6">
-            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_base')"><i class="ph ph-arrow-left"></i></button>
+            <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_exercises')"><i class="ph ph-arrow-left"></i></button>
             <h1 class="text-xl font-bold">${ex.name}</h1>
         </div>
 
@@ -570,10 +951,10 @@ function renderKnowledgeBaseDetail() {
             <div class="flex justify-between text-center">
                 <div>
                     <div class="font-bold text-lg text-primary">${avgLoad}</div>
-                    <div class="text-xs text-muted">Load</div>
+                    <div class="text-xs text-muted">Load (kg)</div>
                 </div>
                 <div>
-                    <div class="font-bold text-lg text-warning">${avgTime}s</div>
+                    <div class="font-bold text-lg text-warning">${Math.floor(avgTime/60)}:${(avgTime%60).toString().padStart(2, '0')}</div>
                     <div class="text-xs text-muted">Time/Set</div>
                 </div>
                 <div>
@@ -591,28 +972,28 @@ function renderKnowledgeBaseDetail() {
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">LOAD TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.loadChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.loadChart, 'kg')}</div>
         </div>
 
         <div class="card mb-4">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">TIME TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.timeChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.timeChart, 'min')}</div>
         </div>
         
         <div class="card mb-4">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">SETS TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.setsChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.setsChart, '')}</div>
         </div>
 
         <div class="card mb-6">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">REPS TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.repsChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.repsChart, '')}</div>
         </div>
     `;
     return container;
@@ -696,11 +1077,17 @@ function renderExerciseStats() {
     const avgLoad = Math.round(exercise.loadChart.reduce((a,b) => a+b, 0) / exercise.loadChart.length);
     const avgTime = Math.round(exercise.timeChart.reduce((a,b) => a+b, 0) / exercise.timeChart.length);
     const avgReps = Math.round(exercise.repsChart.reduce((a,b) => a+b, 0) / exercise.repsChart.length);
+    
+    // Add fallback for sets
+    const setsChart = exercise.setsChart || [3, 3, 4, 4, 4];
+    const avgSets = Math.round(setsChart.reduce((a,b) => a+b, 0) / setsChart.length);
 
     // Helper to generate a simple SVG sparkline path
-    const makeSparkline = (data) => {
-        const min = Math.min(...data) * 0.9;
-        const max = Math.max(...data) * 1.1;
+    const makeSparkline = (data, unit = '') => {
+        const minVal = Math.min(...data);
+        const maxVal = Math.max(...data);
+        const min = minVal === maxVal ? minVal - 1 : minVal - (maxVal - minVal) * 0.1;
+        const max = minVal === maxVal ? maxVal + 1 : maxVal + (maxVal - minVal) * 0.1;
         const width = 100;
         const height = 40;
         const points = data.map((val, i) => {
@@ -708,7 +1095,22 @@ function renderExerciseStats() {
             const y = height - ((val - min) / (max - min)) * height;
             return `${x},${y}`;
         }).join(' ');
-        return `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:100%; overflow:visible;"><polyline fill="none" stroke="var(--accent-primary)" stroke-width="2" points="${points}"/></svg>`;
+
+        let formatVal = (v) => v.toFixed(0) + unit;
+        if (unit === 'min') {
+            formatVal = (v) => Math.floor(v/60) + ':' + (Math.round(v)%60).toString().padStart(2, '0');
+        }
+
+        return `
+        <div style="position: relative; width: 100%; height: 100%;">
+            <div style="position: absolute; top: -5px; left: 0; width: 35px; font-size: 10px; color: var(--muted); text-align: right;">${formatVal(maxVal)}</div>
+            <div style="position: absolute; bottom: -5px; left: 0; width: 35px; font-size: 10px; color: var(--muted); text-align: right;">${formatVal(minVal)}</div>
+            <div style="margin-left: 45px; height: 100%; border-bottom: 1px dashed var(--border-color); position: relative;">
+                <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width:100%; height:100%; overflow:visible;">
+                    <polyline fill="none" stroke="var(--accent-primary)" stroke-width="2" points="${points}"/>
+                </svg>
+            </div>
+        </div>`;
     };
 
     container.innerHTML = `
@@ -725,11 +1127,15 @@ function renderExerciseStats() {
             <div class="flex justify-between text-center">
                 <div>
                     <div class="font-bold text-lg text-primary">${avgLoad}</div>
-                    <div class="text-xs text-muted">Load</div>
+                    <div class="text-xs text-muted">Load (kg)</div>
                 </div>
                 <div>
-                    <div class="font-bold text-lg text-warning">${avgTime}s</div>
-                    <div class="text-xs text-muted">Time</div>
+                    <div class="font-bold text-lg text-warning">${Math.floor(avgTime/60)}:${(avgTime%60).toString().padStart(2, '0')}</div>
+                    <div class="text-xs text-muted">Time/Set</div>
+                </div>
+                <div>
+                    <div class="font-bold text-lg text-success">${avgSets}</div>
+                    <div class="text-xs text-muted">Sets</div>
                 </div>
                 <div>
                     <div class="font-bold text-lg text-success">${avgReps}</div>
@@ -742,21 +1148,28 @@ function renderExerciseStats() {
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">LOAD TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.loadChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.loadChart, 'kg')}</div>
         </div>
 
         <div class="card mb-4">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">TIME TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.timeChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.timeChart, 'min')}</div>
         </div>
         
+        <div class="card mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-semibold text-sm text-muted">SETS TREND</h3>
+            </div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(setsChart, '')}</div>
+        </div>
+
         <div class="card mb-6">
             <div class="flex justify-between items-center mb-2">
                 <h3 class="font-semibold text-sm text-muted">REPS TREND</h3>
             </div>
-            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.repsChart)}</div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(exercise.repsChart, '')}</div>
         </div>
 
         <div class="flex gap-2">
@@ -995,6 +1408,15 @@ function renderDoctorReport() {
                             <li>Reported wellbeing: ${data.recovery.wellbeing}</li>
                         </ul>
                     </div>
+
+                    <div class="mb-5">
+                        <h3 class="font-bold text-lg mb-2" style="border-bottom: 1px solid #eee; color: black;">Nutrition and Macros</h3>
+                        <ul class="text-sm list-disc pl-4 space-y-1" style="color: black; margin-left: 16px;">
+                            <li>Average Intake: ${data.diet ? data.diet.avgKcal : 'N/A'} kcal</li>
+                            <li>Macros: ${data.diet ? data.diet.macros : 'N/A'}</li>
+                            <li>Note: ${data.diet ? data.diet.note : ''}</li>
+                        </ul>
+                    </div>
                     
                     <div class="text-center mt-6">
                         <button class="btn" style="background: black; color: white; padding: 8px 16px; border-radius: 4px; font-size: 14px;"><i class="ph ph-download-simple"></i> Download as PDF</button>
@@ -1062,19 +1484,19 @@ function renderBottomNav() {
     const nav = createEl('nav', 'bottom-nav');
     nav.innerHTML = `
         <button class="nav-item ${currentRoute === 'home' ? 'active' : ''}" onclick="window.navigate('home')">
-            <i class="ph ${currentRoute === 'home' ? 'ph-house-fill' : 'ph-house'}"></i>
+            <i class="${currentRoute === 'home' ? 'ph-fill ph-house' : 'ph ph-house'}"></i>
             Home
         </button>
         <button class="nav-item ${currentRoute === 'knowledge_base' ? 'active' : ''}" onclick="window.navigate('knowledge_base')">
-            <i class="ph ${currentRoute === 'knowledge_base' ? 'ph-book-open-fill' : 'ph-book-open'}"></i>
+            <i class="${currentRoute === 'knowledge_base' ? 'ph-fill ph-book-open' : 'ph ph-book-open'}"></i>
             Knowledge
         </button>
         <button class="nav-item ${currentRoute === 'train' || currentRoute === 'camera_feedback' ? 'active' : ''}" onclick="window.navigate('train')">
-            <i class="ph ${currentRoute === 'train' || currentRoute === 'camera_feedback' ? 'ph-barbell-fill' : 'ph-barbell'}"></i>
+            <i class="${currentRoute === 'train' || currentRoute === 'camera_feedback' ? 'ph-fill ph-barbell' : 'ph ph-barbell'}"></i>
             Train
         </button>
         <button class="nav-item ${currentRoute === 'profile' ? 'active' : ''}" onclick="window.navigate('profile')">
-            <i class="ph ${currentRoute === 'profile' ? 'ph-user-fill' : 'ph-user'}"></i>
+            <i class="${currentRoute === 'profile' ? 'ph-fill ph-user' : 'ph ph-user'}"></i>
             Profile
         </button>
     `;
@@ -1085,11 +1507,23 @@ function renderBottomNav() {
 window.navigate = navigate;
 window.appState = appState;
 window.startWorkout = () => navigate('train');
-window.filterKB = (query) => {
+window.applyKBFilters = () => {
+    const searchEl = document.getElementById('kb-search');
+    const query = searchEl ? searchEl.value.toLowerCase() : '';
+    
+    const muscleEl = document.getElementById('kb-filter-muscle');
+    const muscle = muscleEl ? muscleEl.value : '';
+    
+    const tagEl = document.getElementById('kb-filter-tag');
+    const tag = tagEl ? tagEl.value : '';
+    
     const items = document.querySelectorAll('.kb-item');
-    const q = query.toLowerCase();
     items.forEach(item => {
-        if (item.dataset.name.includes(q)) {
+        const nameMatch = item.dataset.name.includes(query);
+        const muscleMatch = muscle === "" || item.dataset.primary === muscle;
+        const tagMatch = tag === "" || item.dataset.tags.split(',').includes(tag);
+        
+        if (nameMatch && muscleMatch && tagMatch) {
             item.style.display = 'block';
         } else {
             item.style.display = 'none';

@@ -113,38 +113,7 @@ a:hover { text-decoration: underline; }
 .line-through { text-decoration: line-through; }
 .italic       { font-style: italic; }
 
-/* ── Spacing ───────────────────────────────── */
-.mt-1 { margin-top: 4px; }
-.mt-2 { margin-top: 8px; }
-.mt-3 { margin-top: 12px; }
-.mt-4 { margin-top: 16px; }
-.mt-6 { margin-top: 24px; }
-.mt-8 { margin-top: 32px; }
-
-.mb-1 { margin-bottom: 4px; }
-.mb-2 { margin-bottom: 8px; }
-.mb-3 { margin-bottom: 12px; }
-.mb-4 { margin-bottom: 16px; }
-.mb-6 { margin-bottom: 24px; }
-.mb-8 { margin-bottom: 32px; }
-
-.ml-2 { margin-left: 8px; }
-.ml-auto { margin-left: auto; }
-.mr-1 { margin-right: 4px; }
-
-.p-2 { padding: 8px; }
-.p-3 { padding: 12px; }
-.p-4 { padding: 16px; }
-.p-5 { padding: 20px; }
-
-.pt-2 { padding-top: 8px; }
-.pt-4 { padding-top: 16px; }
-.pb-3 { padding-bottom: 12px; }
-.pb-4 { padding-bottom: 16px; }
-.pl-2 { padding-left: 8px; }
-.pl-4 { padding-left: 16px; }
-.px-4 { padding-left: 16px; padding-right: 16px; }
-.py-2 { padding-top: 8px; padding-bottom: 8px; }
+/* Spacing block moved to the bottom of the file for higher specificity */
 
 /* ── Layout ────────────────────────────────── */
 .flex           { display: flex; }
@@ -207,7 +176,6 @@ a:hover { text-decoration: underline; }
     border: 1px solid var(--border-color);
     border-radius: var(--radius-lg);
     padding: 16px;
-    margin-bottom: 0;
     transition: box-shadow var(--transition-base), transform var(--transition-base);
 }
 
@@ -579,3 +547,46 @@ textarea {
         padding: 28px 24px 32px;
     }
 }
+
+/* ── Spacing (Utilities) ───────────────────── */
+.mt-1 { margin-top: 4px !important; }
+.mt-2 { margin-top: 8px !important; }
+.mt-3 { margin-top: 12px !important; }
+.mt-4 { margin-top: 16px !important; }
+.mt-6 { margin-top: 24px !important; }
+.mt-8 { margin-top: 32px !important; }
+
+.mb-1 { margin-bottom: 4px !important; }
+.mb-2 { margin-bottom: 8px !important; }
+.mb-3 { margin-bottom: 12px !important; }
+.mb-4 { margin-bottom: 16px !important; }
+.mb-6 { margin-bottom: 24px !important; }
+.mb-8 { margin-bottom: 32px !important; }
+
+.ml-2 { margin-left: 8px !important; }
+.ml-auto { margin-left: auto !important; }
+.mr-1 { margin-right: 4px !important; }
+
+.p-2 { padding: 8px !important; }
+.p-3 { padding: 12px !important; }
+.p-4 { padding: 16px !important; }
+.p-5 { padding: 20px !important; }
+
+.pt-2 { padding-top: 8px !important; }
+.pt-4 { padding-top: 16px !important; }
+.pb-3 { padding-bottom: 12px !important; }
+.pb-4 { padding-bottom: 16px !important; }
+.pl-2 { padding-left: 8px !important; }
+.pl-4 { padding-left: 16px !important; }
+.px-4 { padding-left: 16px !important; padding-right: 16px !important; }
+.py-2 { padding-top: 8px !important; padding-bottom: 8px !important; }
+
+/* ── Grid Layouts ──────────────────────────── */
+.grid { display: grid !important; }
+.grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }
+.grid-cols-3 { grid-template-columns: repeat(3, 1fr) !important; }
+.gap-1 { gap: 4px !important; }
+.gap-2 { gap: 8px !important; }
+.gap-3 { gap: 12px !important; }
+.gap-4 { gap: 16px !important; }
+.gap-6 { gap: 24px !important; }

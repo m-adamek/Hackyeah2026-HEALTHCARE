@@ -111,6 +111,11 @@ def get_doctor_report():
         "recovery": {
             "avgSleep": "6h 45m (down from 7h 30m)",
             "wellbeing": "Increased fatigue upon waking."
+        },
+        "diet": {
+            "avgKcal": 2850,
+            "macros": "Protein: 35%, Fat: 25%, Carbs: 40%",
+            "note": "Patient maintains a high protein intake, which correlates with their recent strength training phase."
         }
     }
 
@@ -125,21 +130,32 @@ def add_wellbeing(data: WellbeingCreate):
     History["wellbeing"].append(new_entry)
     return {"status": "success", "data": new_entry}
 
+from backend.ai_engine import AIEngine
+ai_engine = AIEngine(ExerciseDB)
+
 @app.post("/api/generate-plan")
 def generate_plan(req: PlanGenerateRequest):
+    plan_data = ai_engine.generate_workout_plan(req.prompt, req.tags)
+    
     new_plan = {
         "id": f"p_{uuid.uuid4().hex[:8]}",
-        "name": "AI Custom Plan",
-        "description": req.prompt if req.prompt else "Custom AI-generated workout based on your input.",
-        "exercises": [
-            { "name": "Dumbbell Goblet Squat", "sets": 3, "reps": "12" },
-            { "name": "Dumbbell Bench Press", "sets": 3, "reps": "10" },
-            { "name": "Dumbbell Row", "sets": 3, "reps": "10" },
-            { "name": "Kettlebell Swing", "sets": 3, "reps": "15" }
-        ]
+        "name": plan_data["title"],
+        "description": plan_data["description"],
+        "exercises": [{"name": ExerciseDB[ex].get("name", ex), "sets": 3, "reps": "10"} for ex in plan_data["exercises"]]
     }
     WorkoutPlans.append(new_plan)
     return {"status": "success", "data": new_plan}
+
+@app.get("/api/insights")
+def get_ai_insights():
+    insights = ai_engine.generate_insights(History, SymptomsList)
+    return {"status": "success", "insights": insights}
+
+@app.post("/api/analyze-posture")
+def analyze_posture():
+    # In reality, this would receive an image/video frame
+    result = ai_engine.analyze_posture("ex_unknown")
+    return {"status": "success", "analysis": result}
 
 @app.post("/api/diet")
 def add_diet(data: DietCreate):
