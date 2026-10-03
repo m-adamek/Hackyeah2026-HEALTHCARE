@@ -1,5 +1,5 @@
 import { getTodayContext, getRecommendation, analyzePatterns } from './analyticsEngine.js';
-import { TodayPlan, UserProfile, ProfileData, ExerciseDB, WorkoutHistory, DietData, AvailableTrainers, WorkoutPlans } from './mockData.js';
+import { initData, TodayPlan, UserProfile, ProfileData, ExerciseDB, WorkoutHistory, DietData, AvailableTrainers, WorkoutPlans } from './mockData.js';
 
 // --- Simple Router ---
 const routes = {
@@ -153,14 +153,32 @@ function renderHome() {
         <h2 class="text-md mb-4 font-semibold flex items-center gap-2"><i class="ph ph-heartbeat"></i> Quick Check-in</h2>
         <div class="slider-container">
             <label>How are you feeling right now?</label>
-            <input type="range" min="1" max="10" value="5">
+            <input type="range" id="wellbeing-slider" min="1" max="10" value="5">
             <div class="flex justify-between text-xs text-muted mt-1">
                 <span>Exhausted</span>
                 <span>Great</span>
             </div>
         </div>
-        <button class="btn btn-secondary w-full" style="width: 100%; padding: 8px;">Log check-in</button>
+        <button class="btn btn-secondary w-full" id="btn-log-wellbeing" style="width: 100%; padding: 8px;">Log check-in</button>
     `;
+    
+    setTimeout(() => {
+        const btn = document.getElementById('btn-log-wellbeing');
+        if (btn) {
+            btn.onclick = async () => {
+                const energy = parseInt(document.getElementById('wellbeing-slider').value);
+                btn.innerHTML = '<i class="ph ph-spinner-gap" style="animation: spin 1s linear infinite;"></i> Saving...';
+                await fetch('/api/wellbeing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ energy })
+                });
+                btn.innerHTML = '<i class="ph ph-check" style="color: var(--success)"></i> Logged';
+                btn.disabled = true;
+            };
+        }
+    }, 0);
+    
     container.appendChild(checkinCard);
 
     return container;
@@ -307,17 +325,55 @@ function renderTrain() {
             </div>
             <p class="text-xs text-muted mb-3">Describe your goal. We'll consider your recent results and available gym equipment.</p>
             <div class="flex flex-col gap-2">
-                <textarea class="bg-surface-200 text-main border-none rounded p-3 w-full text-sm" style="background: var(--surface-200); color: white; border: 1px solid var(--border-color); resize: none; min-height: 80px;" placeholder="e.g. Create a workout for a beginner with bodybuilding goals..."></textarea>
-                <div class="flex gap-2 flex-wrap">
-                    <span class="badge badge-blue cursor-pointer">#bodybuilding</span>
-                    <span class="badge badge-blue cursor-pointer">#power</span>
-                    <span class="badge badge-blue cursor-pointer">#beginner</span>
-                    <span class="badge badge-blue cursor-pointer">#home_workout</span>
+                <textarea id="ai-plan-prompt" class="bg-surface-200 text-main border-none rounded p-3 w-full text-sm" style="background: var(--surface-200); color: white; border: 1px solid var(--border-color); resize: none; min-height: 80px;" placeholder="e.g. Create a workout for a beginner with bodybuilding goals..."></textarea>
+                <div class="flex gap-2 flex-wrap" id="ai-tags-container">
+                    <span class="badge badge-blue cursor-pointer ai-tag">#bodybuilding</span>
+                    <span class="badge badge-blue cursor-pointer ai-tag">#power</span>
+                    <span class="badge badge-blue cursor-pointer ai-tag">#beginner</span>
+                    <span class="badge badge-blue cursor-pointer ai-tag">#home_workout</span>
                 </div>
-                <button class="btn btn-primary mt-2 flex items-center justify-center gap-2"><i class="ph ph-magic-wand"></i> Generate Plan</button>
+                <button id="btn-generate-plan" class="btn btn-primary mt-2 flex items-center justify-center gap-2"><i class="ph ph-magic-wand"></i> Generate Plan</button>
             </div>
         </div>
-        
+    `;
+    
+    setTimeout(() => {
+        let selectedTags = [];
+        document.querySelectorAll('.ai-tag').forEach(tag => {
+            tag.onclick = () => {
+                const text = tag.innerText.replace('#', '');
+                if (selectedTags.includes(text)) {
+                    selectedTags = selectedTags.filter(t => t !== text);
+                    tag.style.opacity = "1";
+                } else {
+                    selectedTags.push(text);
+                    tag.style.opacity = "0.6";
+                }
+            };
+        });
+
+        const btn = document.getElementById('btn-generate-plan');
+        if (btn) {
+            btn.onclick = async () => {
+                const prompt = document.getElementById('ai-plan-prompt').value;
+                btn.innerHTML = '<i class="ph ph-spinner-gap" style="animation: spin 1s linear infinite;"></i> Generating...';
+                
+                const res = await fetch('/api/generate-plan', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, tags: selectedTags })
+                });
+                
+                const data = await res.json();
+                if (data.status === 'success') {
+                    WorkoutPlans.unshift(data.data);
+                    window.navigate('train');
+                }
+            };
+        }
+    }, 0);
+    
+    container.innerHTML += `
         <h3 class="font-semibold text-lg mb-3">Your Modules</h3>
         
         ${WorkoutPlans.map(plan => `
@@ -446,6 +502,43 @@ function renderKnowledgeBaseDetail() {
     
     if (!ex) return renderKnowledgeBase();
 
+    // Find stats in WorkoutHistory or use realistic mock data for the specific exercise
+    let histEx = null;
+    WorkoutHistory.forEach(w => {
+        const found = w.exercises.find(e => e.ref === appState.selectedKBItem || e.name.toLowerCase() === ex.name.toLowerCase());
+        if (found) histEx = found;
+    });
+
+    if (!histEx) {
+        // Fallback realistic mock stats if not in history
+        histEx = {
+            loadChart: [30, 32, 35, 34, 38],
+            timeChart: [45, 42, 40, 40, 38],
+            repsChart: [8, 10, 10, 12, 12],
+            setsChart: [3, 3, 3, 4, 4]
+        };
+    } else {
+        if (!histEx.setsChart) histEx.setsChart = [3, 3, 4, 4, 4];
+    }
+
+    const avgLoad = Math.round(histEx.loadChart.reduce((a,b) => a+b, 0) / histEx.loadChart.length);
+    const avgTime = Math.round(histEx.timeChart.reduce((a,b) => a+b, 0) / histEx.timeChart.length);
+    const avgReps = Math.round(histEx.repsChart.reduce((a,b) => a+b, 0) / histEx.repsChart.length);
+    const avgSets = Math.round(histEx.setsChart.reduce((a,b) => a+b, 0) / histEx.setsChart.length);
+
+    const makeSparkline = (data) => {
+        const min = Math.min(...data) * 0.9;
+        const max = Math.max(...data) * 1.1;
+        const width = 100;
+        const height = 40;
+        const points = data.map((val, i) => {
+            const x = (i / (data.length - 1)) * width;
+            const y = height - ((val - min) / (max - min)) * height;
+            return `${x},${y}`;
+        }).join(' ');
+        return `<svg viewBox="0 0 ${width} ${height}" style="width:100%; height:100%; overflow:visible;"><polyline fill="none" stroke="var(--accent-primary)" stroke-width="2" points="${points}"/></svg>`;
+    };
+
     container.innerHTML = `
         <div class="flex items-center gap-3 mb-6">
             <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('knowledge_base')"><i class="ph ph-arrow-left"></i></button>
@@ -466,19 +559,61 @@ function renderKnowledgeBaseDetail() {
             ${ex.tags ? ex.tags.map(t => `<span class="badge badge-blue">${t}</span>`).join('') : ''}
         </div>
         
-        <button class="btn btn-outline w-full mb-3 border-warning text-warning font-bold flex items-center justify-center gap-2" style="border-color: var(--warning); color: var(--warning);" onclick="window.navigate('camera_feedback')">
+        <button class="btn btn-outline w-full mb-6 border-warning text-warning font-bold flex items-center justify-center gap-2" style="border-color: var(--warning); color: var(--warning);" onclick="window.navigate('camera_feedback')">
             <i class="ph ph-camera text-lg"></i> Record -> Check technique with AI
         </button>
 
-        ${ex.lastStats ? `
-            <div class="bg-surface-200 p-3 rounded mb-4" style="background: var(--surface-200); border-radius: var(--radius-md);">
-                <div class="text-xs text-muted uppercase mb-1">Your Latest Results (${ex.lastStats.date})</div>
-                <div class="font-bold flex justify-between">
-                    <span>Weight: ${ex.lastStats.weight} kg</span>
-                    <span>Reps: ${ex.lastStats.reps}</span>
+        <h3 class="font-bold text-lg mb-4 border-b pb-2" style="border-color: var(--border-color);">Your Statistics</h3>
+
+        <div class="card glass mb-6 p-4">
+            <h3 class="font-semibold mb-3 text-sm text-muted uppercase text-center">Averages (Last 30 days)</h3>
+            <div class="flex justify-between text-center">
+                <div>
+                    <div class="font-bold text-lg text-primary">${avgLoad}</div>
+                    <div class="text-xs text-muted">Load</div>
+                </div>
+                <div>
+                    <div class="font-bold text-lg text-warning">${avgTime}s</div>
+                    <div class="text-xs text-muted">Time/Set</div>
+                </div>
+                <div>
+                    <div class="font-bold text-lg text-success">${avgSets}</div>
+                    <div class="text-xs text-muted">Sets</div>
+                </div>
+                <div>
+                    <div class="font-bold text-lg text-success">${avgReps}</div>
+                    <div class="text-xs text-muted">Reps</div>
                 </div>
             </div>
-        ` : ''}
+        </div>
+
+        <div class="card mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-semibold text-sm text-muted">LOAD TREND</h3>
+            </div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.loadChart)}</div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-semibold text-sm text-muted">TIME TREND</h3>
+            </div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.timeChart)}</div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-semibold text-sm text-muted">SETS TREND</h3>
+            </div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.setsChart)}</div>
+        </div>
+
+        <div class="card mb-6">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-semibold text-sm text-muted">REPS TREND</h3>
+            </div>
+            <div style="height: 60px; padding: 10px 0;">${makeSparkline(histEx.repsChart)}</div>
+        </div>
     `;
     return container;
 }
@@ -739,7 +874,7 @@ function renderSymptomTracker() {
             <h3 class="font-bold text-lg mb-3">Report new discomfort</h3>
             <div class="mb-3">
                 <label class="text-xs text-muted block mb-1">Where does it occur?</label>
-                <select class="bg-surface-200 text-main border-none rounded p-2 w-full">
+                <select id="sym-location" class="bg-surface-200 text-main border-none rounded p-2 w-full">
                     <option>Left shoulder</option>
                     <option>Right elbow</option>
                     <option>Lower back</option>
@@ -748,18 +883,57 @@ function renderSymptomTracker() {
             </div>
             <div class="mb-3">
                 <label class="text-xs text-muted block mb-1">When does it appear?</label>
-                <div class="flex gap-2">
-                    <button class="btn btn-secondary text-xs" style="flex:1">Before workout</button>
-                    <button class="btn btn-primary text-xs text-dark" style="flex:1">During</button>
-                    <button class="btn btn-secondary text-xs" style="flex:1">After workout</button>
+                <div class="flex gap-2" id="sym-timing-container">
+                    <button class="btn btn-secondary text-xs sym-timing" data-val="Before workout" style="flex:1">Before workout</button>
+                    <button class="btn btn-primary text-xs text-dark sym-timing" data-val="During" style="flex:1">During</button>
+                    <button class="btn btn-secondary text-xs sym-timing" data-val="After workout" style="flex:1">After workout</button>
                 </div>
             </div>
             <div class="mb-3">
                 <label class="text-xs text-muted block mb-1">Intensity (1-10)</label>
-                <input type="range" min="1" max="10" value="4" class="w-full">
+                <input id="sym-intensity" type="range" min="1" max="10" value="4" class="w-full">
             </div>
-            <button class="btn btn-primary w-full"><i class="ph ph-plus"></i> Add entry</button>
+            <button id="btn-add-symptom" class="btn btn-primary w-full"><i class="ph ph-plus"></i> Add entry</button>
         </div>
+    `;
+
+    setTimeout(() => {
+        let timing = "During";
+        document.querySelectorAll('.sym-timing').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.sym-timing').forEach(b => {
+                    b.classList.remove('btn-primary', 'text-dark');
+                    b.classList.add('btn-secondary');
+                });
+                btn.classList.remove('btn-secondary');
+                btn.classList.add('btn-primary', 'text-dark');
+                timing = btn.getAttribute('data-val');
+            };
+        });
+
+        const btnAdd = document.getElementById('btn-add-symptom');
+        if (btnAdd) {
+            btnAdd.onclick = async () => {
+                const location = document.getElementById('sym-location').value;
+                const intensity = parseInt(document.getElementById('sym-intensity').value);
+                
+                btnAdd.innerHTML = '<i class="ph ph-spinner-gap" style="animation: spin 1s linear infinite;"></i> Saving...';
+                
+                await fetch('/api/symptoms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ location, timing, intensity })
+                });
+                
+                btnAdd.innerHTML = '<i class="ph ph-check" style="color: var(--success)"></i> Added';
+                setTimeout(() => {
+                    window.navigate('symptom_tracker');
+                }, 1000);
+            };
+        }
+    }, 0);
+    
+    container.innerHTML += `
         
         <button class="btn btn-outline w-full mb-3 font-bold" onclick="window.navigate('doctor_report')">
             <i class="ph ph-stethoscope"></i> Generate report for doctor (Doctor Mode)
@@ -775,44 +949,63 @@ function renderDoctorReport() {
             <button class="btn btn-outline" style="padding: 6px;" onclick="window.navigate('symptom_tracker')"><i class="ph ph-arrow-left"></i></button>
             <h1 class="text-xl font-bold">GymBud Health Report</h1>
         </div>
-        
-        <div class="card bg-white text-black p-5" style="border-radius: 8px;">
-            <div class="text-center mb-6 border-b pb-4 border-gray-300">
-                <h2 class="text-2xl font-black mb-1">HEALTH REPORT</h2>
-                <div class="text-sm text-gray-600">Period: Last 4 weeks</div>
-            </div>
-            
-            <div class="mb-5">
-                <h3 class="font-bold text-lg border-b border-gray-200 pb-1 mb-2">Activity and Load</h3>
-                <ul class="text-sm list-disc pl-4 space-y-1">
-                    <li>Total workouts: 14</li>
-                    <li>Average duration: 55 min</li>
-                    <li>Recent load changes: 15% volume increase in Week 3.</li>
-                </ul>
-            </div>
-
-            <div class="mb-5">
-                <h3 class="font-bold text-lg border-b border-gray-200 pb-1 mb-2">Reported Discomfort</h3>
-                <ul class="text-sm list-disc pl-4 space-y-1">
-                    <li><span class="font-bold text-red-600">Left shoulder:</span> Point pain (4/10).</li>
-                    <li>Associated activity: Dumbbell press, flyes.</li>
-                    <li>Occurrence: Always during exercise, fades 2h after.</li>
-                </ul>
-            </div>
-            
-            <div class="mb-5">
-                <h3 class="font-bold text-lg border-b border-gray-200 pb-1 mb-2">Recovery and Sleep</h3>
-                <ul class="text-sm list-disc pl-4 space-y-1">
-                    <li>Average sleep: 6h 45m (down from 7h 30m).</li>
-                    <li>Reported wellbeing (HRV Proxy): Increased fatigue upon waking.</li>
-                </ul>
-            </div>
-            
-            <div class="text-center mt-6">
-                <button class="btn bg-black text-white px-4 py-2 text-sm rounded"><i class="ph ph-download-simple"></i> Download as PDF</button>
-            </div>
-        </div>
+        <div id="doctor-report-content" class="text-center p-5"><i class="ph ph-spinner-gap" style="animation: spin 1s linear infinite; font-size: 24px;"></i> Loading...</div>
     `;
+
+    setTimeout(async () => {
+        try {
+            const res = await fetch('/api/doctor-report');
+            const data = await res.json();
+            
+            const content = document.getElementById('doctor-report-content');
+            if (content) {
+                content.className = "card bg-white text-black p-5";
+                content.style.borderRadius = "8px";
+                content.style.textAlign = "left";
+                content.innerHTML = `
+                    <div class="text-center mb-6 border-b pb-4" style="border-bottom: 1px solid #ccc;">
+                        <h2 class="text-2xl font-black mb-1" style="color: black;">HEALTH REPORT</h2>
+                        <div class="text-sm" style="color: #666;">Period: Last 4 weeks</div>
+                    </div>
+                    
+                    <div class="mb-5">
+                        <h3 class="font-bold text-lg mb-2" style="border-bottom: 1px solid #eee; color: black;">Activity and Load</h3>
+                        <ul class="text-sm list-disc pl-4 space-y-1" style="color: black; margin-left: 16px;">
+                            <li>Total workouts: ${data.stats.totalWorkouts}</li>
+                            <li>Average duration: ${data.stats.avgDuration} min</li>
+                            <li>Recent load changes: ${data.stats.recentLoadChange}</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-5">
+                        <h3 class="font-bold text-lg mb-2" style="border-bottom: 1px solid #eee; color: black;">Reported Discomfort</h3>
+                        <ul class="text-sm list-disc pl-4 space-y-1" style="color: black; margin-left: 16px;">
+                            ${data.symptoms.map(s => `
+                            <li><span class="font-bold" style="color: #dc2626;">${s.location}:</span> Intensity (${s.intensity}/10).</li>
+                            <li style="margin-bottom: 8px;">Timing: ${s.timing}. Date: ${new Date(s.date).toLocaleDateString()}</li>
+                            `).join('')}
+                            ${data.symptoms.length === 0 ? '<li>No recent symptoms reported.</li>' : ''}
+                        </ul>
+                    </div>
+                    
+                    <div class="mb-5">
+                        <h3 class="font-bold text-lg mb-2" style="border-bottom: 1px solid #eee; color: black;">Recovery and Sleep</h3>
+                        <ul class="text-sm list-disc pl-4 space-y-1" style="color: black; margin-left: 16px;">
+                            <li>Average sleep: ${data.recovery.avgSleep}</li>
+                            <li>Reported wellbeing: ${data.recovery.wellbeing}</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="text-center mt-6">
+                        <button class="btn" style="background: black; color: white; padding: 8px 16px; border-radius: 4px; font-size: 14px;"><i class="ph ph-download-simple"></i> Download as PDF</button>
+                    </div>
+                `;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, 0);
+
     return container;
 }
 
@@ -932,5 +1125,9 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Initial render
-render();
+// Initial render after loading data
+async function startApp() {
+    await initData();
+    render();
+}
+startApp();
