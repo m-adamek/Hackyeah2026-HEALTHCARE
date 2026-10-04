@@ -35,21 +35,33 @@ HACKYEAH/
 └── requirements.txt     # Python dependencies
 ```
 
-## 🚀 How to Run Locally
+## 🚀 How to Run (Foolproof Instructions for Jury)
 
-1. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+To ensure this app runs on any system (Windows/Mac/Linux) without issues, we use standard terminal commands. You only need **Python 3** installed.
 
-2. **Run the backend server**:
-   The frontend is served as static files directly through the FastAPI app.
-   ```bash
-   uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
+**Step 1: Open Terminal / Command Prompt**
+Unzip this project folder, open your Terminal (or Command Prompt), and navigate to the unzipped folder:
+```bash
+cd path/to/HACKYEAH
+```
 
-3. **Open the app**:
-   Navigate to `http://localhost:8000` in your web browser.
+**Step 2: Install Required Libraries**
+Install the backend dependencies (FastAPI, Scikit-Learn):
+```bash
+pip install -r requirements.txt
+```
+*(If `pip` doesn't work, try `pip3 install -r requirements.txt` or `python -m pip install -r requirements.txt`)*
+
+**Step 3: Start the Application Server**
+```bash
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+```
+*(If `python` is not recognized, use `python3` or `py` instead)*
+
+**Step 4: View the App**
+Open your web browser and go to: **http://127.0.0.1:8000**
+
+---
 
 ## 🤝 Hackathon Note
 This project was developed rapidly during HackYeah 2026. It features a complete, responsive mobile-first UI using Vanilla JS and a functioning Python backend that demonstrates practical ML capabilities in a healthcare/fitness context.

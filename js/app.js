@@ -502,7 +502,7 @@ function renderProfile() {
                 </div>
                 <p class="text-sm text-muted mb-4">Monitor your clients' progress, update their plans, and send messages.</p>
                 <button class="btn btn-primary w-full font-bold" onclick="window.navigate('clients')">
-                    Sprawdź swoich podopiecznych <i class="ph ph-arrow-right"></i>
+                    Check your clients <i class="ph ph-arrow-right"></i>
                 </button>
             </div>
         ` : ''}
@@ -633,21 +633,21 @@ function renderClients() {
     
     const clients = [
         {
-            id: 'c1', name: 'Maciej Kowalski', 
+            id: 'c1', name: 'Matthew Smith', 
             lastWorkout: 'Upper Body Power (Yesterday)', 
             loadChange: '+5%', fatigue: 6,
             dietStatus: 'On track (2750 kcal)',
-            avatar: 'MK'
+            avatar: 'MS'
         },
         {
-            id: 'c2', name: 'Anna Nowak', 
+            id: 'c2', name: 'Anna Johnson', 
             lastWorkout: 'Leg Day (Today)', 
             loadChange: '-2%', fatigue: 8,
             dietStatus: 'Needs review',
-            avatar: 'AN'
+            avatar: 'AJ'
         },
         {
-            id: 'c3', name: 'Piotr Wiśniewski', 
+            id: 'c3', name: 'Peter Williams', 
             lastWorkout: 'Rest Day', 
             loadChange: 'Stable', fatigue: 3,
             dietStatus: 'On track (3200 kcal)',
@@ -930,7 +930,7 @@ function renderKnowledgeBaseDetail() {
         <div class="mb-4" style="width: 100%; height: 200px; background: var(--surface-200); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border-color);">
             <div class="text-center text-muted">
                 <i class="ph ph-play-circle text-4xl mb-2"></i>
-                <div class="text-xs">Instructional Video (${ex.videoPlaceholder})</div>
+                <div class="text-xs">Instructional Video</div>
             </div>
         </div>
         
